@@ -1,0 +1,22 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../public"
+		},
+		{
+			"path": "../styles"
+		},
+		{
+			"path": "../app"
+		},
+		{
+			"path": "../components"
+		},
+		{
+			"path": "../hooks"
+		}
+	]
+}
