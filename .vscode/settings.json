@@ -1,0 +1,5 @@
+{
+    "containers.composeCommand": "docker-compose",
+    "containers.containerClient": "com.microsoft.visualstudio.containers.docker",
+    "containers.containerCommand": "docker"
+}
