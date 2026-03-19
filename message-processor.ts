@@ -349,7 +349,7 @@ function extractKeyTopics(text: string): string[] {
     "transfer learning",
   ]
 
-  const topics = []
+  const topics: string[] = []
   const lowerText = text.toLowerCase()
 
   // First pass: direct matches

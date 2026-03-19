@@ -13,15 +13,21 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "message-processor.ts",
+    "fallback-processor.ts",
+    "memory-manager.ts",
+    "clustering.ts",
+    "text-analysis.ts",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }
