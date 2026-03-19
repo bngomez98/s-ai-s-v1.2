@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    serverActions: true,
-  },
   async redirects() {
     return [
       {
@@ -16,4 +13,3 @@ const nextConfig = {
 }
 
 export default nextConfig
-
