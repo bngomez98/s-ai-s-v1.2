@@ -87,7 +87,7 @@ function generateLocalResponse(
   intent: string,
 ): string {
   // Basic knowledge base for common AI topics
-  const knowledgeBase = {
+  const knowledgeBase: Record<string, string> = {
     "artificial intelligence":
       "Artificial intelligence (AI) refers to systems or machines that mimic human intelligence to perform tasks and can iteratively improve themselves based on the information they collect.",
     "machine learning":
