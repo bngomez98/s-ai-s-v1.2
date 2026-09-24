@@ -4,8 +4,6 @@ import { ChatService } from "./chat-service"
 let service: ChatService | undefined
 
 export function getChatService(): ChatService {
-  if (!service) {
-    service = new ChatService(new TogetherModelGateway(process.env.TOGETHER_API_KEY || ""))
-  }
+  if (!service) service = new ChatService(new TogetherModelGateway())
   return service
 }

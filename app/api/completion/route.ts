@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { z } from "zod"
 import { preprocessUserMessage } from "@/message-processor"
 import { formatToPlainText } from "@/fallback-processor"
 import { getMemoryManager } from "@/memory-manager"
@@ -7,65 +8,51 @@ import type { ChatMessage, CompletionOptions } from "@/lib/ai/domain"
 
 export const maxDuration = 30
 
+const imagePartSchema = z.object({
+  type: z.literal("image_url"),
+  image_url: z.object({ url: z.string().url(), detail: z.enum(["auto", "low", "high"]).optional() }),
+})
+const messageSchema = z.object({
+  role: z.enum(["system", "user", "assistant"]),
+  content: z.union([z.string().min(1).max(100_000), z.array(z.union([z.object({ type: z.literal("text"), text: z.string().max(100_000) }), imagePartSchema])).min(1)]),
+})
+const requestSchema = z.object({
+  messages: z.array(messageSchema).min(1).max(100),
+  model: z.string().trim().min(1).max(200).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  top_p: z.number().min(0).max(1).optional(),
+  max_tokens: z.number().int().min(1).max(16_384).optional(),
+  stop: z.array(z.string().max(100)).max(4).optional(),
+})
+
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    if (!Array.isArray(body.messages)) {
-      return NextResponse.json({ error: "messages must be an array" }, { status: 400 })
-    }
+    const parsed = requestSchema.safeParse(await req.json())
+    if (!parsed.success) return NextResponse.json({ error: "Invalid completion request" }, { status: 400 })
 
-    const messages = body.messages as ChatMessage[]
-    const lastUser = [...messages].reverse().find((message) => message.role === "user")
-    if (!lastUser || typeof lastUser.content !== "string") {
+    const { messages, ...requestOptions } = parsed.data
+    const lastUserIndex = [...messages].map((message) => message.role).lastIndexOf("user")
+    if (lastUserIndex < 0 || typeof messages[lastUserIndex].content !== "string") {
       return NextResponse.json({ error: "A text user message is required" }, { status: 400 })
     }
 
-    const processed = await preprocessUserMessage(lastUser.content)
+    const processed = await preprocessUserMessage(messages[lastUserIndex].content)
     const memoryManager = getMemoryManager()
-    const memories = memoryManager.getRelatedMemories(processed, 3)
-    const context = memories.map((memory) => ({
+    const context = memoryManager.getRelatedMemories(processed, 3).map((memory) => ({
       role: "system" as const,
       content: `Relevant context: ${memory.content}`,
     }))
-
-    const providerMessages: ChatMessage[] = [
-      ...context,
-      ...messages.map((message) => (message === lastUser ? { ...message, content: processed } : message)),
-    ]
-
-    const options: CompletionOptions = {
-      model: typeof body.model === "string" ? body.model : undefined,
-      temperature: typeof body.temperature === "number" ? body.temperature : undefined,
-      top_p: typeof body.top_p === "number" ? body.top_p : undefined,
-      max_tokens: typeof body.max_tokens === "number" ? body.max_tokens : undefined,
-      stop: Array.isArray(body.stop)
-        ? body.stop.filter((item: unknown): item is string => typeof item === "string")
-        : undefined,
-    }
-
-    const result = await getChatService().complete(providerMessages, options)
+    const providerMessages: ChatMessage[] = [...context, ...messages.map((message, index) => index === lastUserIndex ? { ...message, content: processed } : message)]
+    const result = await getChatService().complete(providerMessages, requestOptions as CompletionOptions)
     const completion = formatToPlainText(result.text)
 
-    memoryManager.addEntry({
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: processed,
-      timestamp: new Date(),
-      metadata: { importance: 0.5 },
-    })
-
-    memoryManager.addEntry({
-      id: `assistant-${Date.now()}`,
-      role: "assistant",
-      content: completion,
-      timestamp: new Date(),
-      metadata: { importance: 0.5, model: result.model },
-    })
-
+    memoryManager.addEntry({ id: `user-${Date.now()}`, role: "user", content: processed, timestamp: new Date(), metadata: { importance: 0.5 } })
+    memoryManager.addEntry({ id: `assistant-${Date.now()}`, role: "assistant", content: completion, timestamp: new Date(), metadata: { importance: 0.5, model: result.model } })
     return NextResponse.json({ completion, model: result.model, usage: result.usage })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error"
-    const status = message.includes("TOGETHER_API_KEY") ? 503 : 500
-    return NextResponse.json({ error: message, needsApiKey: status === 503 }, { status })
+    console.error("Completion request failed", error)
+    const message = error instanceof Error ? error.message : "Completion failed"
+    const configurationError = /not configured/i.test(message)
+    return NextResponse.json({ error: configurationError ? "AI service is not configured" : "AI service temporarily unavailable", ...(configurationError ? { needsConfiguration: true } : {}) }, { status: configurationError ? 503 : 502 })
   }
 }
